@@ -1,0 +1,17 @@
+"series","label","value"
+"Cancer incidence","20-29",10.5126840413
+"Cancer incidence","30-34",25.8346972232
+"Cancer incidence","35-39",36.0640700029
+"Cancer incidence","40-49",65.8451206468
+"Cancer incidence","50-59",91.12690016
+"Cancer incidence","60-64",110.08222649
+"Cancer incidence","65-74",140.963609074
+"Cancer incidence","75-85",205.964297458
+"Lesion prevalence","20-34",0.00819901749701
+"Lesion prevalence","35-49",0.0188880658727
+"Lesion prevalence","50-64",0.0268423242832
+"Lesion prevalence","65-85",0.0448220106781
+"Lesion persistence","20-34",0.49126081
+"Lesion persistence","35-49",0.52678564
+"Lesion persistence","50-64",0.55980324
+"Lesion persistence","65-85",0.74425129

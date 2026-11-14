@@ -1,0 +1,25 @@
+"series","stratum","value"
+"Cancer incidence","F.20_29",2.2408854958867452e-05
+"Cancer incidence","F.30_39",0.00019391679295694466
+"Cancer incidence","F.40_49",0.00060663653916319198
+"Cancer incidence","F.50_59",0.0010978535186876273
+"Cancer incidence","F.60_69",0.001407847796916651
+"Cancer incidence","F.70_85",0.0015722437514409315
+"Cancer incidence","M.20_29",1.6322188294759e-05
+"Cancer incidence","M.30_39",0.00015503197094475751
+"Cancer incidence","M.40_49",0.00051589227458881707
+"Cancer incidence","M.50_59",0.00098519624006989759
+"Cancer incidence","M.60_69",0.0013754272525993549
+"Cancer incidence","M.70_85",0.0016546898841864597
+"Lesion prevalence","F.20_29",0.15825394266944193
+"Lesion prevalence","F.30_39",0.35004935182465235
+"Lesion prevalence","F.40_49",0.38924525351492745
+"Lesion prevalence","F.50_59",0.38405066543668287
+"Lesion prevalence","F.60_69",0.36637517775583317
+"Lesion prevalence","F.70_85",0.33996143797474254
+"Lesion prevalence","M.20_29",0.12116768730961922
+"Lesion prevalence","M.30_39",0.29104137642600814
+"Lesion prevalence","M.40_49",0.34860708661639511
+"Lesion prevalence","M.50_59",0.35811060287262292
+"Lesion prevalence","M.60_69",0.35062344017859043
+"Lesion prevalence","M.70_85",0.33269375233341153

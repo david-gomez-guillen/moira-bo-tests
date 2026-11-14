@@ -1,0 +1,15 @@
+"series","label","value"
+"Cancer incidence","30-39",168.7
+"Cancer incidence","40-49",336.1
+"Cancer incidence","50-54",393.2
+"Cancer incidence","55-59",472.2
+"Cancer incidence","60-64",386.2
+"Cancer incidence","65-69",382.6
+"Cancer incidence","70-74",461.8
+"Cancer incidence","75-84",391.4
+"Lesion prevalence","20-34",0.04036
+"Lesion prevalence","35-49",0.1184
+"Lesion prevalence","50-64",0.1682
+"Lesion prevalence","65-84",0.23
+"Late-stage share","30-54",0.7634
+"Late-stage share","55-84",0.7299

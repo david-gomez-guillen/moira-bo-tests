@@ -1,0 +1,17 @@
+"series","label","value"
+"Clinical incidence","20-39",26.0157523270417
+"Clinical incidence","40-54",83.1445886855502
+"Clinical incidence","55-69",159.881639559265
+"Clinical incidence","70-84",249.387687058556
+"Lesion prevalence","20-39",0.0639815070822976
+"Lesion prevalence","40-54",0.140254554082598
+"Lesion prevalence","55-69",0.21113238019373
+"Lesion prevalence","70-84",0.269622452050944
+"Preclinical cancer prevalence","20-39",0.00127995947490874
+"Preclinical cancer prevalence","40-54",0.00359577516346422
+"Preclinical cancer prevalence","55-69",0.00623541481984172
+"Preclinical cancer prevalence","70-84",0.00870827088756855
+"Lesion persistence","20-39",0.614020823267976
+"Lesion persistence","40-54",0.714060505084649
+"Lesion persistence","55-69",0.768866092649857
+"Lesion persistence","70-84",0.800023277136366

@@ -1,0 +1,7 @@
+# The results of the standalone MOIRA-BO, and what R and Python leave behind
+moira-bo/results/
+__pycache__/
+*.pyc
+.Rhistory
+.RData
+.Rproj.user/

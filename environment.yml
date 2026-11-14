@@ -1,0 +1,19 @@
+# The environment MOIRA-BO runs in: R, which runs the problems and the method,
+# and Python with PyTorch, which fits the Gaussian processes and the inverse
+# model through reticulate. ggplot2 is there for the problems, whose
+# interfaces draw plots for THALASSA.
+#
+#   conda env create -f environment.yml
+#   conda activate moira-bo
+name: moira-bo
+channels:
+  - conda-forge
+  - nodefaults
+dependencies:
+  - r-base=4.5
+  - r-reticulate>=1.38
+  - r-ggplot2
+  - python=3.12
+  - numpy
+  - scipy
+  - pytorch>=2.2
