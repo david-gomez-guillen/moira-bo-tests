@@ -2,6 +2,10 @@
 # followed in annual cycles from age 20 to 85. Each person is in one of five
 # states, and every year draws one uniform number per person that decides both
 # other-cause death and the disease transition of that year.
+#
+# Strategies: no intervention, which the calibration is run on, or an
+# examination at fixed ages, which removes the lesions it finds and diagnoses
+# the preclinical cancers it finds.
 
 START.AGE <- 20
 END.AGE <- 85
@@ -36,6 +40,12 @@ STRATUM.OF.AGE <- findInterval(AGES, STRATUM.START)
 FOLLOW.UP.AGES <- c(25, 40, 55, 70)
 FOLLOW.UP.YEARS <- 5
 
+# The ages at which each strategy examines the cohort.
+SCREENING.AGES <- list(
+  no_intervention = integer(0),
+  screening_5y = seq(50, 70, by = 5)
+)
+
 other.mortality <- function(ages) {
   LIFE.TABLE$q[findInterval(ages, LIFE.TABLE$age.from)]
 }
@@ -65,9 +75,27 @@ transition.schedule <- function(pars) {
 # to [0, 1), decides the disease: a lesion regresses when v < p.lesion.regress
 # and progresses when it falls in the next p.lesion.progress, and healthy and
 # preclinical people move on when v < their own probability.
-simulate.cohort <- function(pars, n = N.POPULATION) {
+#
+# At each age of `screening.ages` the year starts with an examination. Each
+# person has a draw w for it, and with a lesion or a preclinical cancer is
+# found when w is below the adherence times the sensitivity to what they have:
+# a lesion found is removed, which leaves the person healthy, and a cancer
+# found is diagnosed and counted among the cases of that year. The draws w come
+# from a stream of their own, so the draws u are the same whether the cohort is
+# examined or not, and so are the deaths from other causes.
+simulate.cohort <- function(pars, n = N.POPULATION, screening.ages = integer(0)) {
   s <- transition.schedule(pars)
   state <- rep.int(HEALTHY, n)
+
+  if (length(screening.ages)) {
+    if (!exists('.Random.seed', envir = globalenv(), inherits = FALSE)) runif(1)
+    main <- get('.Random.seed', envir = globalenv())
+    set.seed(sample.int(.Machine$integer.max, 1))
+    screening.draws <- matrix(runif(n * length(screening.ages)), n)
+    assign('.Random.seed', main, envir = globalenv())
+    person <- seq_len(n)
+  }
+  screened <- removed <- screen.found <- numeric(length(AGES))
 
   followed <- NULL
   n.cycles <- length(AGES)
@@ -83,6 +111,19 @@ simulate.cohort <- function(pars, n = N.POPULATION) {
     # end, and no one in between follow-ups.
     followed <- if (AGES[k] %in% FOLLOW.UP.AGES) state == LESION
                 else if (is.na(f)) followed
+
+    round <- match(AGES[k], screening.ages)
+    if (!is.na(round)) {
+      w <- screening.draws[person, round]
+      lesion.found <- state == LESION & w < pars$screening.adherence * pars$screening.sens.lesion
+      cancer.found <- state == PRECLINICAL &
+        w < pars$screening.adherence * pars$screening.sens.cancer
+      screened[k] <- sum(state != CLINICAL & w < pars$screening.adherence)
+      removed[k] <- sum(lesion.found)
+      screen.found[k] <- sum(cancer.found)
+      state[lesion.found] <- HEALTHY
+      state[cancer.found] <- CLINICAL
+    }
 
     counts <- tabulate(state, nbins = 4L)
     alive[k] <- length(state)
@@ -101,10 +142,12 @@ simulate.cohort <- function(pars, n = N.POPULATION) {
     cases[k] <- sum(survives & state == PRECLINICAL & next.state == CLINICAL)
     state <- next.state[survives]
     if (!is.null(followed)) followed <- followed[survives]
+    if (length(screening.ages)) person <- person[survives]
   }
   list(alive = alive, lesions = lesions, preclinical = preclinical,
-       cases = cases, diagnosed = diagnosed,
-       follow.alive = follow.alive, follow.lesion = follow.lesion)
+       cases = cases + screen.found, diagnosed = diagnosed,
+       follow.alive = follow.alive, follow.lesion = follow.lesion,
+       screened = screened, removed = removed)
 }
 
 # The reported outputs of a cohort trace, in the layout of the targets.
@@ -124,20 +167,33 @@ cohort.outputs <- function(trace) {
 }
 
 # Costs and QALYs per person, discounted to age 20: a one-off cost at diagnosis,
-# and a lower utility for every year lived after it.
+# after symptoms or at an examination, a lower utility for every year lived
+# after it, and the cost of the examinations and of the lesions they remove.
 cohort.summary <- function(trace, pars, n = N.POPULATION) {
   discount <- (1 + pars$discount)^-(AGES - START.AGE)
   undiagnosed <- trace$alive - trace$diagnosed
   qalys <- sum(discount * (undiagnosed + pars$utility.after.diagnosis * trace$diagnosed)) / n
-  cost <- sum(discount * trace$cases * pars$cost.diagnosis) / n
+  cost <- sum(discount * trace$cases * pars$cost.diagnosis) / n +
+    sum(discount * (trace$screened * pars$cost.screening +
+                      trace$removed * pars$cost.lesion.removal)) / n
   c(C = cost, E = qalys)
 }
 
+# Every strategy is simulated from the random state the first one starts from:
+# with common random numbers, the difference between two strategies is that of
+# the strategies rather than of the draws.
 simulate <- function(strategies, pars) {
   outputs <- list()
   summary <- data.frame(strategy = character(0), C = numeric(0), E = numeric(0))
+  if (length(strategies) > 1) {
+    if (!exists('.Random.seed', envir = globalenv(), inherits = FALSE)) runif(1)
+    start <- get('.Random.seed', envir = globalenv())
+  }
   for (strategy in strategies) {
-    trace <- simulate.cohort(pars)
+    ages <- SCREENING.AGES[[strategy]]
+    if (is.null(ages)) stop(sprintf("Unknown strategy '%s'", strategy))
+    if (strategy != strategies[1]) assign('.Random.seed', start, envir = globalenv())
+    trace <- simulate.cohort(pars, screening.ages = ages)
     outputs[[strategy]] <- cohort.outputs(trace)
     ce <- cohort.summary(trace, pars)
     summary <- rbind(summary, data.frame(strategy = strategy, C = ce[['C']], E = ce[['E']]))

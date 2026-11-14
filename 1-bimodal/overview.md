@@ -28,6 +28,18 @@ All by age group, each over the years of age in the group.
 
 The calibration scheme fits the three stratified probabilities. The error is the relative squared error, averaged within each series and summed over the two.
 
+## Strategies
+
+| Strategy | Description |
+|---|---|
+| `no_intervention` | Natural history only: cancers are diagnosed when they cause symptoms. The calibration is run on this strategy. |
+| `screening_10y` | An examination at 50, 60 and 70. |
+| `screening_5y` | The same examination at 50, 55, 60, 65, 70 and 75. |
+
+An examination comes at the start of the year, and a share of the cohort attends it (`screening.adherence`). It finds a lesion of either pathway with one sensitivity (`screening.sens.lesion`) and a preclinical cancer with another (`screening.sens.cancer`). A lesion it finds is removed, which leaves the person healthy and no longer at risk of the fast pathway, and a cancer it finds is diagnosed then. Clinical incidence counts those diagnoses too, as a registry would.
+
+A fast-pathway lesion lasts a little over a year, while those of the slow pathway last for years, so how much an examination prevents depends on which pathway makes the cancers, and so on the share of them the calibration gives the fast pathway. A run returns the share of each pathway in `pathway.share`, by strategy.
+
 ## Costs and effects
 
-A clinical diagnosis costs a one-off amount, and every year lived after it has a lower utility. Both are discounted to age 20. They play no part in the calibration.
+A diagnosis costs a one-off amount, and every year lived after it has a lower utility. An examination and the removal of a lesion each have a cost. All are discounted to age 20. They play no part in the calibration.

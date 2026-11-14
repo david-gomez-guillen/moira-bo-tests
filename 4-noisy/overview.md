@@ -41,6 +41,17 @@ The error is the relative squared error, averaged within each of the four series
 - **standard**: the four natural-history probabilities in every age group, 16 values.
 - **constrained**: the same, with the annual probability of leaving the lesion state, regression plus progression, at most 0.18 in every age group.
 
+## Strategies
+
+| Strategy | Description |
+|---|---|
+| `no_intervention` | Natural history only: cancers are diagnosed when they cause symptoms. The calibration is run on this strategy. |
+| `screening_5y` | An examination at 50, 55, 60, 65 and 70. |
+
+An examination comes at the start of the year. Each person has a draw for it, and with a lesion or a preclinical cancer is found when the draw is below the adherence (`screening.adherence`) times the sensitivity to what they have (`screening.sens.lesion`, `screening.sens.cancer`). A lesion found is removed, which leaves the person healthy, and a cancer found is diagnosed and counted in clinical incidence.
+
+Every strategy of a run is simulated from the same random state, and the draws of the examinations come from a stream of their own, so the yearly draws of every person, and with them the deaths from other causes, are the same under every strategy. With these common random numbers the difference between two strategies is that of the strategies, not of the Monte Carlo noise, and the outputs before 50 are the same under both.
+
 ## Costs and effects
 
-A clinical diagnosis costs a one-off amount, and every year lived after it has a lower utility. Both are discounted to age 20. They play no part in the calibration.
+A diagnosis costs a one-off amount, and every year lived after it has a lower utility. An examination and the removal of a lesion each have a cost. All are discounted to age 20. They play no part in the calibration.

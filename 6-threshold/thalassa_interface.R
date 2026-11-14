@@ -13,7 +13,11 @@ get.strata <- function() {
 get.strategies <- function() {
   list(
     list(name = 'current_practice', display.name = 'Current practice',
-         description = 'Transmission at its endemic equilibrium under current testing and treatment.')
+         description = 'Transmission at its endemic equilibrium under current testing and treatment. The strategy the calibration is run on.'),
+    list(name = 'screening_young_women', display.name = 'Testing of women aged 15-24',
+         description = 'A programme that tests women aged 15-24 and treats those found infected, started at the endemic equilibrium and followed for 20 years. Men gain only from the infections their partners no longer pass on.'),
+    list(name = 'screening_young', display.name = 'Testing of women and men aged 15-24',
+         description = 'The same programme for women and men aged 15-24. Tested often enough, they bring the reproduction number below 1, and the infection then dies out.')
   )
 }
 
@@ -55,7 +59,28 @@ MODEL.PARAMETERS <- c(
                        BASE.VALUES$r.clearance, 'Natural history'),
   stratified.parameter('r.waning',
                        'Annual rate of losing antibodies and immunity after an infection',
-                       BASE.VALUES$r.waning, 'Natural history')
+                       BASE.VALUES$r.waning, 'Natural history'),
+  list(
+    list(name = 'screening.rate',
+         display.name = 'Annual rate at which a testing programme tests a person of the age groups it covers',
+         base.value = 0.5, class = 'Testing programme', distribution = 'lognormal', min.value = 0),
+    list(name = 'test.sensitivity', display.name = 'Probability that a test finds an infection',
+         base.value = 0.95, class = 'Testing programme', distribution = 'beta',
+         min.value = 0, max.value = 1),
+    list(name = 'r.sequelae',
+         display.name = 'Annual rate at which an infection in a woman causes sequelae (pelvic inflammatory disease)',
+         base.value = 0.08, class = 'Sequelae', distribution = 'lognormal', min.value = 0),
+    list(name = 'qaly.loss.sequelae', display.name = 'QALYs lost to the sequelae of an infection',
+         base.value = 0.15, class = 'Sequelae', distribution = 'beta', min.value = 0, max.value = 1),
+    list(name = 'cost.test', display.name = 'Cost of a test', base.value = 40,
+         class = 'Costs', distribution = 'cost', min.value = 0),
+    list(name = 'cost.treatment', display.name = 'Cost of treating an infection', base.value = 30,
+         class = 'Costs', distribution = 'cost', min.value = 0),
+    list(name = 'cost.sequelae', display.name = 'Cost of treating the sequelae of an infection',
+         base.value = 2500, class = 'Costs', distribution = 'cost', min.value = 0),
+    list(name = 'discount', display.name = 'Discount rate for costs and effects',
+         base.value = 0.03, class = 'General', min.value = 0, max.value = 1)
+  )
 )
 
 get.parameters <- function() {
@@ -65,8 +90,12 @@ get.parameters <- function() {
 default.parameters <- function() {
   pars <- list()
   for (descriptor in MODEL.PARAMETERS) {
-    if (is.null(pars[[descriptor$name]])) pars[[descriptor$name]] <- list()
-    pars[[descriptor$name]][[descriptor$stratum]] <- descriptor$base.value
+    if (is.null(descriptor$stratum)) {
+      pars[[descriptor$name]] <- descriptor$base.value
+    } else {
+      if (is.null(pars[[descriptor$name]])) pars[[descriptor$name]] <- list()
+      pars[[descriptor$name]][[descriptor$stratum]] <- descriptor$base.value
+    }
   }
   pars
 }

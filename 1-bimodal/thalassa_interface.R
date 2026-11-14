@@ -7,7 +7,11 @@ get.overview <- function() {
 get.strategies <- function() {
   list(
     list(name = 'no_intervention', display.name = 'No intervention',
-         description = 'Natural history only: cancers are diagnosed when they cause symptoms.')
+         description = 'Natural history only: cancers are diagnosed when they cause symptoms. The strategy the calibration is run on.'),
+    list(name = 'screening_10y', display.name = 'Examination every 10 years, 50-70',
+         description = 'An examination at 50, 60 and 70 that removes the lesions it finds, of either pathway, and diagnoses the preclinical cancers it finds.'),
+    list(name = 'screening_5y', display.name = 'Examination every 5 years, 50-75',
+         description = 'The same examination at 50, 55, 60, 65, 70 and 75. Fast-pathway lesions last little over a year, so more frequent examinations find more of them.')
   )
 }
 
@@ -66,6 +70,20 @@ MODEL.PARAMETERS <- c(
          min.value = 0, max.value = Inf),
     probability('utility.after.diagnosis', 'Utility of a year lived after a cancer diagnosis',
                 0.75, 'Utilities'),
+    probability('screening.adherence', 'Share of the cohort that attends an examination',
+                0.60, 'Screening'),
+    probability('screening.sens.lesion',
+                'Probability that an examination finds a lesion of either pathway',
+                0.80, 'Screening'),
+    probability('screening.sens.cancer',
+                'Probability that an examination finds a preclinical cancer',
+                0.90, 'Screening'),
+    list(name = 'cost.screening', display.name = 'Cost of an examination',
+         base.value = 500, class = 'Costs', distribution = 'gamma',
+         min.value = 0, max.value = Inf),
+    list(name = 'cost.lesion.removal', display.name = 'Cost of removing a lesion found at an examination',
+         base.value = 300, class = 'Costs', distribution = 'gamma',
+         min.value = 0, max.value = Inf),
     list(name = 'discount', display.name = 'Discount rate for costs and effects',
          base.value = 0.03, class = 'General', min.value = 0, max.value = 1)
   )

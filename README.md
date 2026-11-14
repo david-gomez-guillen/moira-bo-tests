@@ -17,6 +17,8 @@ Each problem is a disease simulation model of the kind used in cost-effectivenes
 | `7-valley` | 21 | 18 | 19 linear: each age block non-decreasing, fast-pathway onset at most 35% of the low-grade one | two pathways that only one series separates, with a set of fits of dimension 3 |
 | `8-vertex` | 12 | 16 | 13 nonlinear and coupled: lesion duration, share progressing, lifetime risk | an optimum at a vertex of the feasible set |
 
+Every problem also has strategies to compare in the cost-effectiveness tabs of THALASSA: screening, vaccination or a testing programme, depending on the problem (`7-valley` already had several). The calibration always runs on the strategy without the intervention, whose results the others leave unchanged. The Overview tab of each problem describes its strategies.
+
 All the targets are synthetic. On `3-misspec` they come from a process the model cannot reproduce, with measurement error added. On `4-noisy` they are the expected outputs at a set of true parameters, which the noisy outputs of the microsimulation can only approach. On the other problems they are the outputs of the model at a set of true parameters. Those parameters are not part of this repository.
 
 ## How the repository is organized

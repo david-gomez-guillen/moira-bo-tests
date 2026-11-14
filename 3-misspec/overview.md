@@ -1,8 +1,8 @@
 # Natural history of a lesion-derived cancer
 
 A Markov cohort model of a cancer that develops from a precancerous lesion. It follows a
-cohort from age 20 to age 85 in yearly cycles, with no screening: every cancer is
-diagnosed when it gives symptoms.
+cohort from age 20 to age 85 in yearly cycles. Without screening, which is the strategy the
+calibration is run on, every cancer is diagnosed when it gives symptoms.
 
 ## States
 
@@ -49,3 +49,26 @@ report.
 The data are estimates and carry sampling error. The error of a parameter set is the
 relative squared error of each output against its target, averaged within each series and
 summed over the three series.
+
+## Strategies
+
+| Strategy | Description |
+|---|---|
+| `no_intervention` | Natural history only. The calibration is run on this strategy. |
+| `screening_5y` | An examination at 50, 55, 60, 65 and 70. |
+
+An examination comes at the start of the year, and a share of the cohort attends it
+(`screening.adherence`). It finds a lesion with one sensitivity (`screening.sens.lesion`)
+and a preclinical cancer, localized or advanced, with another (`screening.sens.cancer`). A
+lesion it finds is removed, which leaves the person healthy; a cancer it finds is diagnosed
+at the stage it has reached. Incidence and the late-stage share count those diagnoses too.
+
+The calibrated model cannot reproduce the data, so what it predicts screening achieves rests
+on the compromise between the targets that the calibration settles on.
+
+## Costs and effects
+
+A diagnosis costs a one-off amount and every year lived after it has a lower utility,
+whatever the stage, so finding a cancer earlier gains nothing in itself: what screening
+gains comes from the lesions it removes. An examination and the removal of a lesion each
+have a cost. All are discounted to age 20. They play no part in the calibration.

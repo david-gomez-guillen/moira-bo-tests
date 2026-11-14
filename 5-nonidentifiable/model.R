@@ -4,6 +4,12 @@
 # cancer becomes clinical when it causes symptoms. Once diagnosed, a cancer has
 # the same prognosis whichever pathway it came from: it is either cured or
 # fatal.
+#
+# Strategies: no intervention, which the calibration is run on, or an
+# examination at fixed ages, which removes the lesions it finds and treats the
+# preclinical cancers it finds. A fast-pathway cancer has no lesion before it to
+# remove and causes symptoms sooner, so screening does less against the fast
+# pathway than against the slow one.
 
 MODEL.STRATA <- c('30-44', '45-59', '60-74', '75-89')
 START.AGE <- 30
@@ -16,6 +22,13 @@ STATES <- c('healthy', 'lgl', 'hgl', 'pre.slow', 'pre.fast',
 ALIVE <- c('healthy', 'lgl', 'hgl', 'pre.slow', 'pre.fast', 'clinical', 'cured')
 UNDIAGNOSED <- c('healthy', 'lgl', 'hgl', 'pre.slow', 'pre.fast')
 LESION <- c('lgl', 'hgl')
+PRECLINICAL <- c('pre.slow', 'pre.fast')
+
+# The ages at which each strategy examines the cohort.
+SCREENING.AGES <- list(
+  no_intervention = integer(0),
+  screening_5y = seq(45, 70, by = 5)
+)
 
 # The value of a parameter in a stratum, whether it arrives as one number or as
 # a list (or vector) named by stratum.
@@ -58,7 +71,14 @@ other.mortality <- function(pars, age) {
 
 # Runs the cohort and returns its trace (a row per age, at the start of the
 # year) and the yearly flows the outputs are counted from.
-simulate.cohort <- function(pars) {
+#
+# At each age of `screening.ages` the year starts with an examination. Of those
+# who attend, it finds a lesion with one sensitivity and a preclinical cancer
+# with another. A lesion it finds is removed, which leaves the person healthy.
+# A cancer it finds is diagnosed: treated while still without symptoms, it is
+# cured at once with probability p.cure.screen.detected, and otherwise goes on
+# as a diagnosed cancer.
+simulate.cohort <- function(pars, screening.ages = integer(0)) {
   matrices <- lapply(MODEL.STRATA, function(s) disease.matrix(pars, s))
   names(matrices) <- MODEL.STRATA
 
@@ -71,7 +91,22 @@ simulate.cohort <- function(pars) {
   trace <- matrix(0, n, length(STATES), dimnames = list(AGES, STATES))
   diagnosed <- numeric(n)
   cancer.deaths <- numeric(n)
+  screened <- removed <- screen.detected <- screen.cured <- numeric(n)
   for (i in seq_len(n)) {
+    if (AGES[i] %in% screening.ages) {
+      attending <- pars$screening.adherence
+      found.lesions <- state[LESION] * attending * pars$screening.sens.lesion
+      found.cancers <- state[PRECLINICAL] * attending * pars$screening.sens.cancer
+      screened[i] <- attending * sum(state[UNDIAGNOSED])
+      removed[i] <- sum(found.lesions)
+      screen.detected[i] <- sum(found.cancers)
+      screen.cured[i] <- screen.detected[i] * pars$p.cure.screen.detected
+      state[LESION] <- state[LESION] - found.lesions
+      state['healthy'] <- state[['healthy']] + removed[i]
+      state[PRECLINICAL] <- state[PRECLINICAL] - found.cancers
+      state['cured'] <- state[['cured']] + screen.cured[i]
+      state['clinical'] <- state[['clinical']] + screen.detected[i] - screen.cured[i]
+    }
     trace[i, ] <- state
     P <- matrices[[AGE.STRATUM[i]]]
     q <- other.mortality(pars, AGES[i])
@@ -85,12 +120,14 @@ simulate.cohort <- function(pars) {
     names(state) <- STATES
     state['dead.other'] <- state['dead.other'] + sum(alive) * q
   }
-  list(trace = trace, diagnosed = diagnosed, cancer.deaths = cancer.deaths)
+  list(trace = trace, diagnosed = diagnosed + screen.detected, cancer.deaths = cancer.deaths,
+       screened = screened, removed = removed, screen.cured = screen.cured)
 }
 
 # The outputs the model is compared with registries and lesion surveys by, one
 # value per age group:
-# - clinical incidence, diagnoses per person-year among those never diagnosed;
+# - clinical incidence, diagnoses per person-year among those never diagnosed,
+#   at an examination as well as after symptoms;
 # - cancer mortality, cancer deaths per person-year among the living;
 # - lesion prevalence, the share of the never-diagnosed with a lesion of
 #   either grade, averaged over the ages of the group.
@@ -107,13 +144,18 @@ cohort.outputs <- function(cohort) {
   )
 }
 
-# Costs and QALYs of the cohort, discounted, for the summary the app expects.
+# Costs and QALYs of the cohort, discounted, for the summary the app expects:
+# every year under treatment, and for a screening strategy the examinations,
+# the lesions they remove and the cancers they find that are cured at once.
 cohort.economics <- function(cohort, pars) {
   trace <- cohort$trace
   discount <- (1 + pars$discount)^-(AGES - START.AGE)
   in.treatment <- trace[, 'clinical']
   well <- rowSums(trace[, c('healthy', 'lgl', 'hgl', 'pre.slow', 'pre.fast', 'cured'), drop = FALSE])
-  cost <- sum(discount * in.treatment * pars$cost.treatment)
+  cost <- sum(discount * in.treatment * pars$cost.treatment) +
+    sum(discount * (cohort$screened * pars$cost.screening +
+                      cohort$removed * pars$cost.lesion.removal +
+                      cohort$screen.cured * pars$cost.early.treatment))
   qalys <- sum(discount * (well + in.treatment * pars$utility.cancer))
   c(C = cost, E = qalys)
 }
@@ -123,7 +165,9 @@ simulate <- function(strategies, pars) {
   traces <- list()
   summary <- data.frame(strategy = character(0), C = numeric(0), E = numeric(0))
   for (strategy in strategies) {
-    cohort <- simulate.cohort(pars)
+    ages <- SCREENING.AGES[[strategy]]
+    if (is.null(ages)) stop(sprintf("Unknown strategy '%s'", strategy))
+    cohort <- simulate.cohort(pars, ages)
     outputs[[strategy]] <- cohort.outputs(cohort)
     traces[[strategy]] <- cohort$trace
     economics <- cohort.economics(cohort, pars)

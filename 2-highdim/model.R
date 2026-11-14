@@ -5,6 +5,10 @@
 # cancer, diagnosed cancer, and death from other causes. Every transition but
 # symptomatic diagnosis and other-cause death takes one value per stratum, a
 # stratum being a sex and an age group.
+#
+# A cohort can have been vaccinated before 20, in part: the vaccinated share of
+# a sex runs as a cohort of its own, whose lesion onset the vaccine lowers, and
+# the outputs are those of the two shares together.
 
 SEXES <- c('F', 'M')
 AGE.GROUPS <- c('20_29', '30_39', '40_49', '50_59', '60_69', '70_85')
@@ -108,9 +112,24 @@ summarise.cohort <- function(cohort, sex) {
        cancers=sum(cohort$new.diagnoses))
 }
 
-simulate <- function(pars, strict=FALSE) {
+# The cohort of a sex of which a share `vaccinated` received the vaccine, whose
+# efficacy is the share of the lesions it prevents. Everything else is the same
+# for both shares, so the cohort is their mix.
+simulate.vaccinated.cohort <- function(pars, sex, strict, vaccinated, efficacy) {
+  cohort <- simulate.cohort(pars, sex, strict)
+  if (vaccinated == 0) return(cohort)
+  protected <- pars
+  protected$p.lesion.onset <- lapply(as.list(unlist(pars$p.lesion.onset)), function(onset)
+    onset * (1 - efficacy))
+  immune <- simulate.cohort(protected, sex, strict)
+  list(trace=(1 - vaccinated) * cohort$trace + vaccinated * immune$trace,
+       new.diagnoses=(1 - vaccinated) * cohort$new.diagnoses + vaccinated * immune$new.diagnoses)
+}
+
+# `vaccinated` is the share of each sex that was vaccinated, 0 by default.
+simulate <- function(pars, strict=FALSE, vaccinated=c(F=0, M=0), efficacy=0) {
   cohorts <- lapply(SEXES, function(sex) {
-    cohort <- simulate.cohort(pars, sex, strict)
+    cohort <- simulate.vaccinated.cohort(pars, sex, strict, vaccinated[[sex]], efficacy)
     c(summarise.cohort(cohort, sex), list(trace=cohort$trace))
   })
   names(cohorts) <- SEXES

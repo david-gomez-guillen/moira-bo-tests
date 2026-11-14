@@ -2,7 +2,9 @@
 #
 #   Cycle:    one year
 #   Horizon:  from age 20 to age 85
-#   Strategy: natural history only, cancers are diagnosed when they give symptoms
+#   Strategies: natural history only, cancers are diagnosed when they give
+#               symptoms, which the calibration is run on; or examinations at
+#               fixed ages, which remove lesions and find preclinical cancers
 #
 # The cohort starts at age 20 free of lesions. Each year a healthy person can
 # develop a lesion, a lesion can regress or become a preclinical cancer, and a
@@ -36,6 +38,12 @@ INCIDENCE.GROUPS <- list(`30-39` = 30:39, `40-49` = 40:49, `50-54` = 50:54, `55-
                          `60-64` = 60:64, `65-69` = 65:69, `70-74` = 70:74, `75-84` = 75:84)
 PREVALENCE.GROUPS <- MODEL.STRATA.AGES
 STAGE.GROUPS <- list(`30-54` = 30:54, `55-84` = 55:84)
+
+# The ages at which each strategy examines the cohort.
+SCREENING.AGES <- list(
+  no_intervention = integer(0),
+  screening_5y = seq(50, 70, by = 5)
+)
 
 
 # ---- One year of natural history ----------------------------------------------
@@ -77,7 +85,14 @@ transition.probabilities <- function(p) {
 # Runs the cohort from age 20 to 85. Returns, for each year of age, the share
 # of the cohort in each state at the start of the year and the cancers
 # diagnosed during it, at the localized and at the advanced stage.
-simulate.cohort <- function(p) {
+#
+# At each age of `screening.ages` the year starts with an examination. Of those
+# who attend, it finds a lesion with one sensitivity and a preclinical cancer
+# with another. A lesion it finds is removed, which leaves the person healthy;
+# a cancer it finds is diagnosed at the stage it has reached, and counts among
+# the diagnoses of that year. Returns too, per year, the share of the cohort
+# examined and the lesions removed.
+simulate.cohort <- function(p, screening.ages = integer(0)) {
   tp <- transition.probabilities(p)
   if (any(!is.finite(unlist(tp))) || any(unlist(tp) < 0) || any(unlist(tp) > 1))
     stop('every transition probability must lie in [0, 1]')
@@ -86,9 +101,22 @@ simulate.cohort <- function(p) {
                   dimnames = list(MODEL.AGES, MODEL.STATES))
   diagnosed.early <- numeric(n)
   diagnosed.late <- numeric(n)
+  screened <- removed <- screen.early <- screen.late <- numeric(n)
 
   healthy <- 1; lesion <- 0; pre.early <- 0; pre.late <- 0; diagnosed <- 0; dead <- 0
   for (i in seq_len(n)) {
+    if (MODEL.AGES[i] %in% screening.ages) {
+      attending <- unlist(p$screening.adherence)
+      screened[i] <- attending * (healthy + lesion + pre.early + pre.late)
+      removed[i] <- lesion * attending * unlist(p$screening.sens.lesion)
+      screen.early[i] <- pre.early * attending * unlist(p$screening.sens.cancer)
+      screen.late[i] <- pre.late * attending * unlist(p$screening.sens.cancer)
+      healthy <- healthy + removed[i]
+      lesion <- lesion - removed[i]
+      pre.early <- pre.early - screen.early[i]
+      pre.late <- pre.late - screen.late[i]
+      diagnosed <- diagnosed + screen.early[i] + screen.late[i]
+    }
     trace[i, ] <- c(healthy, lesion, pre.early, pre.late, diagnosed, dead)
     alive <- 1 - tp$death.other[i]
 
@@ -118,15 +146,19 @@ simulate.cohort <- function(p) {
     healthy <- living[1]; lesion <- living[2]; pre.early <- living[3]
     pre.late <- living[4]; diagnosed <- living[5]
   }
-  list(trace = trace, diagnosed.early = diagnosed.early, diagnosed.late = diagnosed.late)
+  list(trace = trace,
+       diagnosed.early = diagnosed.early + screen.early,
+       diagnosed.late = diagnosed.late + screen.late,
+       screened = screened, removed = removed)
 }
 
 
 # ---- Outputs ------------------------------------------------------------------
 
 # What the calibration compares with data:
-#   Cancer incidence:   symptomatic diagnoses per 100,000 person-years among
-#                       those never diagnosed, by age group
+#   Cancer incidence:   diagnoses per 100,000 person-years among those never
+#                       diagnosed, by age group: after symptoms, and under a
+#                       screening strategy at an examination too
 #   Lesion prevalence:  share of those never diagnosed who carry a lesion, by
 #                       age group, as a study examining a sample of every age
 #                       for lesions would find
@@ -150,24 +182,33 @@ cohort.outputs <- function(cohort) {
 }
 
 # Costs and QALYs of the cohort, discounted, for the cost-effectiveness tabs: a
-# cost for every diagnosis and a lower utility for every year lived after one.
+# cost for every diagnosis and a lower utility for every year lived after one,
+# whatever the stage, and the cost of the examinations and of the lesions they
+# remove.
 cohort.summary <- function(cohort, p) {
   discount <- (1 + unlist(p$discount))^-(MODEL.AGES - MODEL.AGE.START)
   diagnosed <- cohort$diagnosed.early + cohort$diagnosed.late
   undiagnosed <- rowSums(cohort$trace[, AT.RISK, drop = FALSE])
   qalys <- undiagnosed + unlist(p$utility.after.diagnosis) * cohort$trace[, 'diagnosed']
-  c(C = sum(discount * diagnosed * unlist(p$cost.diagnosis)), E = sum(discount * qalys))
+  screening <- cohort$screened * unlist(p$cost.screening) +
+    cohort$removed * unlist(p$cost.lesion.removal)
+  c(C = sum(discount * diagnosed * unlist(p$cost.diagnosis)) + sum(discount * screening),
+    E = sum(discount * qalys))
 }
 
-# Runs the cohort once for each strategy. There is only natural history to
-# simulate, so every strategy gives the same results.
+# Runs the cohort once for each strategy. `cohort` is the cohort of each.
 simulate <- function(strategies, p) {
-  cohort <- simulate.cohort(p)
-  outputs <- cohort.outputs(cohort)
-  totals <- cohort.summary(cohort, p)
-  summary <- data.frame(strategy = strategies, C = unname(totals[['C']]),
-                        E = unname(totals[['E']]))
-  list(summary = summary,
-       outputs = setNames(rep(list(outputs), length(strategies)), strategies),
-       cohort = cohort)
+  summary <- data.frame(strategy = character(0), C = numeric(0), E = numeric(0))
+  outputs <- cohorts <- list()
+  for (strategy in strategies) {
+    ages <- SCREENING.AGES[[strategy]]
+    if (is.null(ages)) stop(sprintf("Unknown strategy '%s'", strategy))
+    cohort <- simulate.cohort(p, ages)
+    totals <- cohort.summary(cohort, p)
+    summary <- rbind(summary, data.frame(strategy = strategy, C = unname(totals[['C']]),
+                                         E = unname(totals[['E']])))
+    outputs[[strategy]] <- cohort.outputs(cohort)
+    cohorts[[strategy]] <- cohort
+  }
+  list(summary = summary, outputs = outputs, cohort = cohorts)
 }

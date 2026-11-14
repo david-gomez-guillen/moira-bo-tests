@@ -1,8 +1,8 @@
 # Two-pathway cancer natural history
 
 A Markov cohort model of the natural history of a cancer, in annual cycles. A
-cohort enters at age 30 and is followed to age 89, with no screening or other
-intervention.
+cohort enters at age 30 and is followed to age 89. The calibration is run with
+no screening or other intervention.
 
 ## Disease states
 
@@ -61,3 +61,31 @@ every series count.
   cancers in every age group, which is what is known of it apart from the targets.
   The share is that of the healthy and lesion states of the cohort, followed from
   age 30 with the calibrated probabilities.
+
+## Strategies
+
+| Strategy | Description |
+|---|---|
+| `no_intervention` | Natural history only. The calibration is run on this strategy. |
+| `screening_5y` | An examination at 45, 50, 55, 60, 65 and 70. |
+
+An examination comes at the start of the year, and a share of the cohort attends
+it (`screening.adherence`). It finds a lesion of either grade with one
+sensitivity (`screening.sens.lesion`) and a preclinical cancer with another
+(`screening.sens.cancer`). A lesion it finds is removed, which leaves the person
+healthy. A cancer it finds is treated while it has no symptoms: it is cured at
+once with probability `p.cure.screen.detected`, and otherwise goes on as a
+diagnosed cancer. Clinical incidence counts these diagnoses too.
+
+A fast-pathway cancer has no lesion before it to remove, and causes symptoms
+sooner than a slow-pathway one, so an examination finds it less often. Parameter
+sets that fit the targets equally well but share the cancers differently between
+the pathways therefore give screening different value: the identification the
+targets do not give is what the cost-effectiveness depends on.
+
+## Costs and effects
+
+Every year under treatment for a diagnosed cancer has a cost and a lower
+utility. An examination, the removal of a lesion and the treatment of a cancer
+it finds that is cured at once each have a cost. All are discounted to age 30.
+They play no part in the calibration.

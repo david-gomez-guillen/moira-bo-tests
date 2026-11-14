@@ -7,7 +7,11 @@ get.overview <- function() {
 get.strategies <- function() {
   list(
     list(name = 'no_intervention', display.name = 'No intervention',
-         description = 'Natural history only: cancers are diagnosed when they cause symptoms.')
+         description = 'Natural history only: cancers are diagnosed when they cause symptoms. The strategy the calibration is run on.'),
+    list(name = 'screening_3y', display.name = 'Screening every 3 years, 25-64',
+         description = 'A screening test every three years from 25 to 64 that removes the lesions it finds and diagnoses the preclinical cancers it finds.'),
+    list(name = 'screening_5y', display.name = 'Screening every 5 years, 30-64',
+         description = 'The same test every five years from 30 to 64.')
   )
 }
 
@@ -49,6 +53,18 @@ MODEL.PARAMETERS <- c(
          min.value = 0, max.value = Inf),
     probability('utility.after.diagnosis', 'Utility of a year lived after a cancer diagnosis',
                 0.75, 'Utilities'),
+    probability('screening.adherence', 'Share of the cohort that attends a screening round',
+                0.70, 'Screening'),
+    probability('screening.sens.lesion', 'Probability that a screening test finds a high-grade lesion',
+                0.70, 'Screening'),
+    probability('screening.sens.cancer', 'Probability that a screening test finds a preclinical cancer',
+                0.85, 'Screening'),
+    list(name = 'cost.screening', display.name = 'Cost of a screening test',
+         base.value = 50, class = 'Costs', distribution = 'gamma',
+         min.value = 0, max.value = Inf),
+    list(name = 'cost.lesion.removal', display.name = 'Cost of removing a lesion found at screening',
+         base.value = 600, class = 'Costs', distribution = 'gamma',
+         min.value = 0, max.value = Inf),
     list(name = 'discount', display.name = 'Discount rate for costs and effects',
          base.value = 0.03, class = 'General', min.value = 0, max.value = 1)
   )

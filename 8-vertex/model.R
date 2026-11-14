@@ -3,6 +3,10 @@
 # develop a lesion, a lesion may regress or become a preclinical cancer, and a
 # preclinical cancer is diagnosed once it causes symptoms. Everyone alive also
 # faces other-cause mortality.
+#
+# Strategies: no intervention, which the calibration is run on, or a screening
+# test at a fixed interval, which removes the lesions it finds and diagnoses
+# the preclinical cancers it finds.
 
 MODEL.STRATA <- c('20-34', '35-49', '50-64', '65-85')
 AGES <- 20:85
@@ -16,6 +20,13 @@ INCIDENCE.GROUPS <- list(`20-29` = 20:29, `30-34` = 30:34, `35-39` = 35:39,
 
 # Interval of the follow-up study of untreated lesions, in years.
 FOLLOWUP.YEARS <- 2
+
+# The ages at which each strategy screens the cohort.
+SCREENING.AGES <- list(
+  no_intervention = integer(0),
+  screening_3y = seq(25, 64, by = 3),
+  screening_5y = seq(30, 64, by = 5)
+)
 
 # One value per year of age, from a parameter given by stratum.
 by.age <- function(value) {
@@ -32,7 +43,14 @@ other.mortality <- function(pars) {
 
 # Runs the cohort and returns, for every year of age, the people at the start
 # of the year by state and the cancers diagnosed during it.
-run.cohort <- function(pars) {
+#
+# At each age of `screening.ages` the year starts with a screening test. Of
+# those who attend, it finds a lesion with one sensitivity and a preclinical
+# cancer with another. A lesion it finds is removed, which leaves the person
+# lesion-free; a cancer it finds is diagnosed, and counts among the diagnoses
+# of that year. Returns too, per year, the people screened and the lesions
+# removed.
+run.cohort <- function(pars, screening.ages = integer(0)) {
   onset <- by.age(pars$p.lesion.onset)
   regress <- by.age(pars$p.lesion.regress)
   progress <- by.age(pars$p.lesion.progress)
@@ -44,8 +62,17 @@ run.cohort <- function(pars) {
 
   n <- length(AGES)
   healthy <- lesion <- preclinical <- diagnosed <- diagnoses <- numeric(n)
+  screened <- removed <- screen.detected <- numeric(n)
   h <- 1; l <- 0; p <- 0; d <- 0
   for (i in seq_len(n)) {
+    if (AGES[i] %in% screening.ages) {
+      attending <- pars$screening.adherence
+      screened[i] <- attending * (h + l + p)
+      removed[i] <- l * attending * pars$screening.sens.lesion
+      screen.detected[i] <- p * attending * pars$screening.sens.cancer
+      h <- h + removed[i]; l <- l - removed[i]
+      p <- p - screen.detected[i]; d <- d + screen.detected[i]
+    }
     healthy[i] <- h; lesion[i] <- l; preclinical[i] <- p; diagnosed[i] <- d
     new.diagnoses <- p * symptoms
     diagnoses[i] <- new.diagnoses
@@ -57,7 +84,8 @@ run.cohort <- function(pars) {
     p <- p.next * survival[i]; d <- d.next * survival[i]
   }
   list(healthy = healthy, lesion = lesion, preclinical = preclinical,
-       diagnosed = diagnosed, diagnoses = diagnoses)
+       diagnosed = diagnosed, diagnoses = diagnoses + screen.detected,
+       screened = screened, removed = removed)
 }
 
 # Registry incidence per 100,000 person-years among the undiagnosed, lesion
@@ -83,11 +111,14 @@ cohort.outputs <- function(trace, pars) {
        `Lesion persistence` = persistence)
 }
 
-# Discounted costs of diagnosed cancers and discounted QALYs of the cohort.
+# Discounted costs of diagnosed cancers, of the screening tests and of the
+# lesions they remove, and discounted QALYs of the cohort.
 cohort.summary <- function(trace, pars) {
   discount <- (1 + pars$discount)^-(AGES - 20)
   alive.undiagnosed <- trace$healthy + trace$lesion + trace$preclinical
-  costs <- sum(trace$diagnoses * pars$cost.diagnosis * discount)
+  costs <- sum(trace$diagnoses * pars$cost.diagnosis * discount) +
+    sum((trace$screened * pars$cost.screening + trace$removed * pars$cost.lesion.removal) *
+          discount)
   qalys <- sum((alive.undiagnosed + trace$diagnosed * pars$utility.after.diagnosis) * discount)
   c(C = costs, E = qalys)
 }
@@ -96,7 +127,9 @@ simulate <- function(strategies, pars) {
   outputs <- list()
   summary <- data.frame(strategy = character(0), C = numeric(0), E = numeric(0))
   for (strategy in strategies) {
-    trace <- run.cohort(pars)
+    ages <- SCREENING.AGES[[strategy]]
+    if (is.null(ages)) stop(sprintf("Unknown strategy '%s'", strategy))
+    trace <- run.cohort(pars, ages)
     outputs[[strategy]] <- cohort.outputs(trace, pars)
     ce <- cohort.summary(trace, pars)
     summary <- rbind(summary, data.frame(strategy = strategy, C = ce[['C']], E = ce[['E']]))

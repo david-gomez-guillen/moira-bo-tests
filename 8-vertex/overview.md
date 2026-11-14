@@ -1,8 +1,8 @@
 # High-grade lesion natural history
 
 A cohort model of the natural history of a cancer that arises from a precancerous
-high-grade lesion, in a population with no screening. It follows a single birth cohort
-from age 20, lesion-free, to age 85 in annual cycles.
+high-grade lesion. It follows a single birth cohort from age 20, lesion-free, to age 85 in
+annual cycles. The calibration is run on a population with no screening.
 
 ## States and transitions
 
@@ -44,3 +44,28 @@ The search is restricted to natural histories the clinical literature considers 
 - in every age group, at most a quarter of lesions progress rather than regress;
 - the lifetime risk of developing a lesion between 20 and 85, in the absence of death, is
   at most 32%.
+
+## Strategies
+
+| Strategy | Description |
+|---|---|
+| `no_intervention` | Natural history only. The calibration is run on this strategy. |
+| `screening_3y` | A screening test every three years from 25 to 64. |
+| `screening_5y` | The same test every five years from 30 to 64. |
+
+A screening round comes at the start of the year, and a share of the cohort attends it
+(`screening.adherence`). The test finds a high-grade lesion with one sensitivity
+(`screening.sens.lesion`) and a preclinical cancer with another (`screening.sens.cancer`).
+A lesion it finds is removed, which leaves the person lesion-free; a cancer it finds is
+diagnosed, and counts in the incidence. Lesion persistence describes untreated lesions, so
+it is the same under every strategy.
+
+How long a lesion lasts sets how often screening has to come round to find it before it
+progresses, so the interval worth paying for depends on the durations the calibration
+settles on, which the constraints bound.
+
+## Costs and effects
+
+A diagnosis costs a one-off amount, and every year lived after it has a lower utility. A
+screening test and the removal of a lesion each have a cost. All are discounted to age 20.
+They play no part in the calibration.

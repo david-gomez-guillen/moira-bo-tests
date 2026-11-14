@@ -9,6 +9,10 @@
 #
 # Both pathways end in the same preclinical cancer, which becomes clinical when
 # it causes symptoms.
+#
+# Strategies: no intervention, which the calibration is run on, or an
+# examination at fixed ages that removes the lesions it finds and diagnoses
+# the preclinical cancers it finds.
 
 START.AGE <- 20
 END.AGE <- 85
@@ -32,6 +36,15 @@ STATES <- c('healthy.susceptible', 'healthy', 'low.grade', 'high.grade', 'fast.l
 PRECURSORS <- c('low.grade', 'high.grade', 'fast.lesion')
 UNDIAGNOSED <- c('healthy.susceptible', 'healthy', PRECURSORS, 'preclinical')
 
+# The ages at which each strategy examines the cohort. A fast-pathway lesion
+# lasts a little over a year, so an examination finds few of them unless
+# examinations are frequent; the lesions of the slow pathway last for years.
+SCREENING.AGES <- list(
+  no_intervention = integer(0),
+  screening_10y = seq(50, 70, by = 10),
+  screening_5y = seq(50, 75, by = 5)
+)
+
 # The value of a parameter at every age of the simulation, whether it comes as
 # one value or as one per stratum.
 by.age <- function(value) {
@@ -47,8 +60,15 @@ check.probability <- function(name, values) {
 
 # Runs the cohort and returns, per cycle, the share of the cohort in each state
 # at its start, the clinical diagnoses during it and the preclinical cancers
-# each pathway produced during it.
-run.cohort <- function(pars) {
+# each pathway produced during it, with the examinations of the strategy at the
+# ages in `screening.ages`.
+#
+# An examination comes at the start of the year. Of those who attend, it finds
+# a lesion of either pathway with one sensitivity and a preclinical cancer with
+# another. A lesion it finds is removed, which leaves the person healthy and,
+# like clearing it, no longer at risk of the fast pathway. A cancer it finds is
+# diagnosed then, and counts as a diagnosis of that year.
+run.cohort <- function(pars, screening.ages = integer(0)) {
   onset.slow <- by.age(pars$p.lgl.onset)
   onset.fast <- by.age(pars$p.fast.onset)
   hgl.progress <- by.age(pars$p.hgl.progress)
@@ -68,12 +88,24 @@ run.cohort <- function(pars) {
   n <- length(AGES)
   trace <- matrix(0, n, length(STATES), dimnames = list(AGES, STATES))
   diagnoses <- slow.cancers <- fast.cancers <- numeric(n)
+  screened <- removed <- screen.detected <- numeric(n)
 
   x <- setNames(numeric(length(STATES)), STATES)
   x['healthy.susceptible'] <- pars$prop.susceptible
   x['healthy'] <- 1 - pars$prop.susceptible
 
   for (i in seq_len(n)) {
+    if (AGES[i] %in% screening.ages) {
+      attending <- pars$screening.adherence
+      found.lesions <- x[PRECURSORS] * attending * pars$screening.sens.lesion
+      screened[i] <- attending * sum(x[UNDIAGNOSED])
+      removed[i] <- sum(found.lesions)
+      screen.detected[i] <- x[['preclinical']] * attending * pars$screening.sens.cancer
+      x[PRECURSORS] <- x[PRECURSORS] - found.lesions
+      x['healthy'] <- x[['healthy']] + removed[i]
+      x['preclinical'] <- x[['preclinical']] - screen.detected[i]
+      x['clinical'] <- x[['clinical']] + screen.detected[i]
+    }
     trace[i, ] <- x
     to.preclinical.slow <- x[['high.grade']] * hgl.progress[i]
     to.preclinical.fast <- x[['fast.lesion']] * pars$p.fast.progress
@@ -99,42 +131,61 @@ run.cohort <- function(pars) {
     x <- y * (1 - mortality[i])
   }
   list(trace = trace, diagnoses = diagnoses, slow.cancers = slow.cancers,
-       fast.cancers = fast.cancers)
+       fast.cancers = fast.cancers, screened = screened, removed = removed,
+       screen.detected = screen.detected)
 }
 
 # Clinical incidence per 100,000 person-years of the undiagnosed, and the share
 # of the undiagnosed with a precursor lesion, averaged over the ages of a group.
+# Incidence counts every diagnosis, after symptoms or at an examination, as a
+# registry would.
 cohort.outputs <- function(cohort) {
   at.risk <- rowSums(cohort$trace[, UNDIAGNOSED, drop = FALSE])
   with.lesion <- rowSums(cohort$trace[, PRECURSORS, drop = FALSE]) / at.risk
+  all.diagnoses <- cohort$diagnoses + cohort$screen.detected
   rows <- function(ages) match(ages, AGES)
   list(
     `Clinical incidence` = sapply(INCIDENCE.GROUPS, function(ages) {
       j <- rows(ages)
-      sum(cohort$diagnoses[j]) / sum(at.risk[j]) * 1e5
+      sum(all.diagnoses[j]) / sum(at.risk[j]) * 1e5
     }),
     `Precursor prevalence` = sapply(PREVALENCE.GROUPS, function(ages) mean(with.lesion[rows(ages)]))
   )
 }
 
-simulate <- function(strategies, pars) {
-  cohort <- run.cohort(pars)
-  outputs <- cohort.outputs(cohort)
-
+# Costs and QALYs of a cohort, discounted to age 20: a one-off cost for every
+# diagnosis, a lower utility for every year lived after it, and the cost of the
+# examinations and of the lesions they remove.
+cohort.summary <- function(cohort, pars) {
   discount <- (1 + pars$discount)^-(AGES - START.AGE)
   alive.undiagnosed <- rowSums(cohort$trace[, UNDIAGNOSED, drop = FALSE])
   alive.diagnosed <- cohort$trace[, 'clinical']
-  cost <- sum(cohort$diagnoses * pars$cost.diagnosis * discount)
+  cost <- sum((cohort$diagnoses + cohort$screen.detected) * pars$cost.diagnosis * discount) +
+    sum((cohort$screened * pars$cost.screening + cohort$removed * pars$cost.lesion.removal) *
+          discount)
   qalys <- sum((alive.undiagnosed + alive.diagnosed * pars$utility.after.diagnosis) * discount)
+  c(C = cost, E = qalys)
+}
 
+# The share of the preclinical cancers of the cohort that each pathway made.
+pathway.share <- function(cohort) {
   cancers <- sum(cohort$slow.cancers + cohort$fast.cancers)
-  share <- c(slow = sum(cohort$slow.cancers), fast = sum(cohort$fast.cancers)) /
+  c(slow = sum(cohort$slow.cancers), fast = sum(cohort$fast.cancers)) /
     (if (cancers > 0) cancers else 1)
+}
 
-  list(
-    summary = data.frame(strategy = strategies, C = cost, E = qalys),
-    outputs = setNames(rep(list(outputs), length(strategies)), strategies),
-    pathway.share = setNames(rep(list(share), length(strategies)), strategies),
-    cohort.info = setNames(rep(list(cohort$trace), length(strategies)), strategies)
-  )
+simulate <- function(strategies, pars) {
+  summary <- data.frame(strategy = character(0), C = numeric(0), E = numeric(0))
+  outputs <- share <- traces <- list()
+  for (strategy in strategies) {
+    ages <- SCREENING.AGES[[strategy]]
+    if (is.null(ages)) stop(sprintf("Unknown strategy '%s'", strategy))
+    cohort <- run.cohort(pars, ages)
+    ce <- cohort.summary(cohort, pars)
+    summary <- rbind(summary, data.frame(strategy = strategy, C = ce[['C']], E = ce[['E']]))
+    outputs[[strategy]] <- cohort.outputs(cohort)
+    share[[strategy]] <- pathway.share(cohort)
+    traces[[strategy]] <- cohort$trace
+  }
+  list(summary = summary, outputs = outputs, pathway.share = share, cohort.info = traces)
 }

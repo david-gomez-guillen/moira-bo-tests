@@ -11,9 +11,20 @@ get.strata <- function() {
 get.strategies <- function() {
   list(
     list(name='natural_history', display.name='Natural history',
-         description='No screening and no vaccination: cancers are diagnosed when they cause symptoms.')
+         description='No screening and no vaccination: cancers are diagnosed when they cause symptoms. The strategy the calibration is run on.'),
+    list(name='vaccination_girls', display.name='Vaccination of girls',
+         description='Girls are offered the vaccine before 20. It prevents a share of the lesions of those vaccinated, and does nothing for men, since the model has no transmission.'),
+    list(name='vaccination_both', display.name='Vaccination of girls and boys',
+         description='Girls and boys are offered the vaccine before 20, with the same coverage and efficacy.')
   )
 }
+
+# The sexes each strategy vaccinates.
+VACCINATED.SEXES <- list(
+  natural_history=character(0),
+  vaccination_girls='F',
+  vaccination_both=c('F', 'M')
+)
 
 get.model.settings <- function() {
   list(cost.unit='€', effectiveness.unit='LY')
@@ -73,7 +84,16 @@ MODEL.PARAMETERS <- c(
          base.value=0.085, class='Mortality', distribution='lognormal', min.value=0),
     list(name='cost.cancer',
          display.name='Cost of diagnosing and treating a cancer',
-         base.value=30000, class='Costs', distribution='cost', min.value=0)
+         base.value=30000, class='Costs', distribution='cost', min.value=0),
+    list(name='vaccination.coverage',
+         display.name='Share of those offered the vaccine who complete the course',
+         base.value=0.80, class='Vaccination', distribution='beta', min.value=0, max.value=1),
+    list(name='vaccination.efficacy',
+         display.name='Share of the lesions, of any HPV type, that the vaccine prevents',
+         base.value=0.70, class='Vaccination', distribution='beta', min.value=0, max.value=1),
+    list(name='cost.vaccination',
+         display.name='Cost of vaccinating a person, the whole course',
+         base.value=250, class='Costs', distribution='cost', min.value=0)
   )
 )
 
@@ -96,14 +116,30 @@ default.parameters <- function() {
   pars
 }
 
+# Costs and life years per person, half women and half men, undiscounted: the
+# cancers diagnosed and, for a vaccination strategy, the courses given. The
+# diagnosed never die (see the overview), so the life years of a strategy fall
+# as it prevents cancers; `cancers` gives the cancers per person of each
+# strategy, to compare them by.
 run.simulation <- function(strategies, pars, strict=FALSE) {
-  results <- simulate(pars, strict=strict)
-  summary <- data.frame(strategy=strategies,
-                        C=results$cancers * pars$cost.cancer,
-                        E=results$life.years)
-  list(summary=summary,
-       outputs=setNames(rep(list(results$outputs), length(strategies)), strategies),
-       traces=setNames(rep(list(results$traces), length(strategies)), strategies))
+  summary <- data.frame(strategy=character(0), C=numeric(0), E=numeric(0))
+  outputs <- traces <- cancers <- list()
+  for (strategy in strategies) {
+    sexes <- VACCINATED.SEXES[[strategy]]
+    if (is.null(sexes)) stop(sprintf("Unknown strategy '%s'", strategy))
+    vaccinated <- setNames(ifelse(SEXES %in% sexes, pars$vaccination.coverage, 0), SEXES)
+    results <- simulate(pars, strict=strict, vaccinated=vaccinated,
+                        efficacy=pars$vaccination.efficacy)
+    courses <- mean(vaccinated)
+    summary <- rbind(summary, data.frame(
+      strategy=strategy,
+      C=results$cancers * pars$cost.cancer + courses * pars$cost.vaccination,
+      E=results$life.years))
+    outputs[[strategy]] <- results$outputs
+    traces[[strategy]] <- results$traces
+    cancers[[strategy]] <- results$cancers
+  }
+  list(summary=summary, outputs=outputs, traces=traces, cancers=cancers)
 }
 
 # Registry incidence and a prevalence survey, by sex and age group.

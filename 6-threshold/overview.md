@@ -56,3 +56,34 @@ reproduction number of at least 1.05. R0 is the spectral radius of the
 next-generation matrix at the infection-free state, from the susceptibility,
 activity and clearance of every age group (`basic.reproduction.number()` in
 `model.R`). Below R0 = 1 the infection dies out and every prevalence is 0.
+
+## Strategies
+
+| Strategy | Description |
+|---|---|
+| `current_practice` | The endemic equilibrium under current testing and treatment. Both schemes calibrate on this strategy. |
+| `screening_young_women` | A programme that tests women aged 15-24. |
+| `screening_young` | The same programme for women and men aged 15-24. |
+
+A programme starts at the endemic equilibrium of current practice and is
+followed for 20 years. It tests the people of the age groups it covers at
+`screening.rate` a year, and a test finds an infection with probability
+`test.sensitivity`. Those it finds are treated, so the programme adds a
+treatment rate to that of current practice. A shorter infection is also passed
+on to fewer partners, so the programme lowers the reproduction number too. When
+that falls below 1 the infection dies out, slowly, over the years of the
+programme. A run returns the reproduction number of every strategy
+(`reproduction.number`) and what happened in each year of it (`programme`).
+
+The outputs of current practice are those of its equilibrium, which the
+calibration fits, and those of a programme are the prevalences at its end.
+
+## Costs and effects
+
+Per person aged 15-64, over the 20 years of a programme and discounted. Current
+practice is followed over the same 20 years at its equilibrium. The costs are
+those of the tests, of the treatment of every infection treated and of the
+sequelae of infection in women, pelvic inflammatory disease, which arise at
+`r.sequelae` a year of infection. Every person-year is a QALY but for the QALYs
+the sequelae take away (`qaly.loss.sequelae`). None of this plays a part in the
+calibration.

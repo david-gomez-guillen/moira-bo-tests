@@ -1,9 +1,9 @@
 # Natural history of an HPV-related cancer by sex and age
 
 A Markov cohort model of the natural history of a cancer caused by a sexually
-acquired infection, in men and women without screening or vaccination. Two
-closed cohorts, one of women and one of men, are followed from age 20 to 85 in
-annual cycles. Both start healthy.
+acquired infection, in men and women. Two closed cohorts, one of women and one
+of men, are followed from age 20 to 85 in annual cycles. Both start healthy.
+They have not been vaccinated, except under the vaccination strategies.
 
 ## States
 
@@ -78,3 +78,35 @@ All three schemes calibrate the same 60 values against the same targets.
   | `p.invasion` | 0.14 |
 
   That is 5 transitions × 2 sexes × 5 pairs of age groups, 50 constraints.
+
+## Strategies
+
+| Strategy | Description |
+|---|---|
+| `natural_history` | No screening and no vaccination. Every scheme calibrates on this strategy. |
+| `vaccination_girls` | Girls are offered the vaccine before 20. |
+| `vaccination_both` | Girls and boys are offered the vaccine before 20. |
+
+A share of those offered the vaccine completes the course
+(`vaccination.coverage`), and the vaccine prevents a share of the lesions of
+the vaccinated (`vaccination.efficacy`): their annual probability of lesion
+onset is that of the unvaccinated times 1 minus the efficacy. The vaccinated
+share of a sex is run as a cohort of its own, and the outputs are those of the
+two shares together. The model has no transmission, so vaccinating girls does
+nothing for men.
+
+## Costs and effects
+
+Per person, half women and half men, and undiscounted: every cancer diagnosed
+costs `cost.cancer`, and a vaccination strategy costs `cost.vaccination` for
+every course given. The effects are the life years lived from 20 to 85. They
+play no part in the calibration.
+
+The model has no death from cancer, and the diagnosed do not die of other
+causes either: the diagnosed state is where a cohort member leaves the
+population at risk, and stays. A strategy that prevents cancers therefore
+loses the life years the diagnosed would have lost to other causes, so the
+vaccination strategies show slightly fewer life years than natural history,
+at a lower cost. The life years of natural history are kept as they were, so
+that earlier results can be reproduced. To compare the strategies on what they
+prevent, a run returns the cancers per person of each strategy, in `cancers`.

@@ -6,7 +6,9 @@ get.overview <- function() {
 
 get.strategies <- function() {
   list(list(name = 'no_intervention', display.name = 'No intervention',
-            description = 'Natural history only: cancers are diagnosed when they cause symptoms.'))
+            description = 'Natural history only: cancers are diagnosed when they cause symptoms. The strategy the calibration is run on.'),
+       list(name = 'screening_5y', display.name = 'Examination every 5 years, 45-70',
+            description = 'An examination at 45, 50, 55, 60, 65 and 70 that removes the lesions it finds and treats the preclinical cancers it finds, most of which are cured at once. It prevents only slow-pathway cancers, which have a lesion before them.'))
 }
 
 get.strata <- function() {
@@ -54,6 +56,22 @@ MODEL.PARAMETERS <- list(
             25000, 'Costs', distribution = 'cost', max.value = Inf),
   parameter('utility.cancer', 'Utility of a year with a diagnosed cancer under treatment',
             0.70, 'Utilities', distribution = 'utility'),
+  parameter('screening.adherence', 'Share of the cohort that attends an examination',
+            0.60, 'Screening'),
+  parameter('screening.sens.lesion', 'Probability that an examination finds a lesion of either grade',
+            0.75, 'Screening'),
+  parameter('screening.sens.cancer', 'Probability that an examination finds a preclinical cancer',
+            0.85, 'Screening'),
+  parameter('p.cure.screen.detected',
+            'Probability that a cancer found at an examination is cured by its treatment at once',
+            0.80, 'Cancer survival'),
+  parameter('cost.screening', 'Cost of an examination', 400, 'Costs',
+            distribution = 'cost', max.value = Inf),
+  parameter('cost.lesion.removal', 'Cost of removing a lesion found at an examination',
+            300, 'Costs', distribution = 'cost', max.value = Inf),
+  parameter('cost.early.treatment',
+            'Cost of treating a cancer found at an examination that is cured at once',
+            15000, 'Costs', distribution = 'cost', max.value = Inf),
   list(name = 'discount', display.name = 'Discount rate for costs and effects',
        base.value = 0.03, class = 'General', min.value = 0, max.value = 1)
 )
