@@ -111,13 +111,15 @@ default.parameters <- function() {
   pars
 }
 
-run.simulation <- function(strategies, pars) {
+# With `make.plots`, which the Base case tab sets, the results carry the plots
+# of every strategy too.
+run.simulation <- function(strategies, pars, make.plots = FALSE) {
   for (name in CALIB.PARAMS) {
     value <- as.numeric(unlist(pars[[name]])[MODEL.STRATA])
     if (anyNA(value) || any(value < 0 | value > 1))
       stop(sprintf('%s must be a probability in every age group', name))
   }
-  simulate(strategies, pars)
+  simulate(strategies, pars, make.plots)
 }
 
 # Incidence comes from the cancer registry, prevalence from a population study

@@ -174,9 +174,37 @@ pathway.share <- function(cohort) {
     (if (cancers > 0) cancers else 1)
 }
 
-simulate <- function(strategies, pars) {
+# The plots of the Base case tab for a cohort, each under the title of its tab:
+# a numeric vector named by age, or a data frame of the ages and a line per
+# column. Rates are among the undiagnosed, as the outputs are.
+cohort.plots <- function(cohort) {
+  at.risk <- rowSums(cohort$trace[, UNDIAGNOSED, drop = FALSE])
+  per.100k <- function(x) x / at.risk * 1e5
+  share <- function(state) cohort$trace[, state] / at.risk
+  incidence <- data.frame(Age = AGES, `After symptoms` = per.100k(cohort$diagnoses),
+                          check.names = FALSE)
+  if (any(cohort$screen.detected > 0))
+    incidence$`At an examination` <- per.100k(cohort$screen.detected)
+  list(
+    `Clinical incidence per 100,000` = incidence,
+    # The preclinical cancers each pathway makes: where the two basins of the
+    # calibration differ.
+    `New cancers by pathway per 100,000` =
+      data.frame(Age = AGES, `Slow pathway` = per.100k(cohort$slow.cancers),
+                 `Fast pathway` = per.100k(cohort$fast.cancers), check.names = FALSE),
+    `Precursor prevalence` =
+      data.frame(Age = AGES, `Low-grade` = share('low.grade'), `High-grade` = share('high.grade'),
+                 `Fast-pathway lesion` = share('fast.lesion'), check.names = FALSE),
+    `Cumulative diagnoses per 100,000` =
+      setNames(cumsum(cohort$diagnoses + cohort$screen.detected) * 1e5, AGES)
+  )
+}
+
+# The plots are drawn only when `make.plots` asks for them, so that every other
+# run, the calibration's among them, returns what it did without them.
+simulate <- function(strategies, pars, make.plots = FALSE) {
   summary <- data.frame(strategy = character(0), C = numeric(0), E = numeric(0))
-  outputs <- share <- traces <- list()
+  outputs <- share <- traces <- plots <- list()
   for (strategy in strategies) {
     ages <- SCREENING.AGES[[strategy]]
     if (is.null(ages)) stop(sprintf("Unknown strategy '%s'", strategy))
@@ -186,6 +214,10 @@ simulate <- function(strategies, pars) {
     outputs[[strategy]] <- cohort.outputs(cohort)
     share[[strategy]] <- pathway.share(cohort)
     traces[[strategy]] <- cohort$trace
+    if (make.plots) plots[[strategy]] <- cohort.plots(cohort)
   }
-  list(summary = summary, outputs = outputs, pathway.share = share, cohort.info = traces)
+  results <- list(summary = summary, outputs = outputs, pathway.share = share,
+                  cohort.info = traces)
+  if (make.plots) results$plots <- plots
+  results
 }

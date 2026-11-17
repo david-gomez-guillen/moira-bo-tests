@@ -100,8 +100,10 @@ default.parameters <- function() {
   pars
 }
 
-run.simulation <- function(strategies, pars) {
-  simulate(strategies, pars)
+# With `make.plots`, which the Base case tab sets, the results carry the plots
+# of every strategy too.
+run.simulation <- function(strategies, pars, make.plots = FALSE) {
+  simulate(strategies, pars, make.plots)
 }
 
 # Prevalence and seroprevalence surveys by age group and sex, one row per

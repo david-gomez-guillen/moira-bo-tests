@@ -120,10 +120,11 @@ default.parameters <- function() {
 # cancers diagnosed and, for a vaccination strategy, the courses given. The
 # diagnosed never die (see the overview), so the life years of a strategy fall
 # as it prevents cancers; `cancers` gives the cancers per person of each
-# strategy, to compare them by.
-run.simulation <- function(strategies, pars, strict=FALSE) {
+# strategy, to compare them by. With `make.plots`, which the Base case tab
+# sets, the results carry the plots of every strategy too.
+run.simulation <- function(strategies, pars, make.plots=FALSE, strict=FALSE) {
   summary <- data.frame(strategy=character(0), C=numeric(0), E=numeric(0))
-  outputs <- traces <- cancers <- list()
+  outputs <- traces <- cancers <- plots <- list()
   for (strategy in strategies) {
     sexes <- VACCINATED.SEXES[[strategy]]
     if (is.null(sexes)) stop(sprintf("Unknown strategy '%s'", strategy))
@@ -138,8 +139,11 @@ run.simulation <- function(strategies, pars, strict=FALSE) {
     outputs[[strategy]] <- results$outputs
     traces[[strategy]] <- results$traces
     cancers[[strategy]] <- results$cancers
+    if (make.plots) plots[[strategy]] <- cohort.plots(results)
   }
-  list(summary=summary, outputs=outputs, traces=traces, cancers=cancers)
+  simulation <- list(summary=summary, outputs=outputs, traces=traces, cancers=cancers)
+  if (make.plots) simulation$plots <- plots
+  simulation
 }
 
 # Registry incidence and a prevalence survey, by sex and age group.

@@ -160,9 +160,42 @@ cohort.economics <- function(cohort, pars) {
   c(C = cost, E = qalys)
 }
 
-simulate <- function(strategies, pars) {
+# The plots of the Base case tab for a cohort, each under the title of its tab:
+# a numeric vector named by age, or a data frame of the ages and a line per
+# column. Rates are among those never diagnosed, mortality among the living, as
+# the outputs are.
+#
+# The new cancers of each pathway are the preclinical cancers it makes in a
+# year, out of the trace and the transitions of each age: the fast pathway's
+# share of them is what the constraints bound, and the data only pin down what
+# the two pathways make together.
+cohort.plots <- function(cohort, pars) {
+  trace <- cohort$trace
+  undiagnosed <- rowSums(trace[, UNDIAGNOSED, drop = FALSE])
+  alive <- rowSums(trace[, ALIVE, drop = FALSE])
+  survival <- 1 - other.mortality(pars, AGES)
+  onset <- function(from, to) {
+    p <- sapply(MODEL.STRATA, function(s) disease.matrix(pars, s)[from, to])
+    trace[, from] * survival * p[AGE.STRATUM]
+  }
+  per.100k <- function(x) x / undiagnosed * 1e5
+  list(
+    `Clinical incidence per 100,000` = setNames(per.100k(cohort$diagnosed), AGES),
+    `New cancers by pathway per 100,000` =
+      data.frame(Age = AGES, `Slow pathway` = per.100k(onset('hgl', 'pre.slow')),
+                 `Fast pathway` = per.100k(onset('healthy', 'pre.fast')), check.names = FALSE),
+    `Lesion prevalence` =
+      data.frame(Age = AGES, `Low-grade` = trace[, 'lgl'] / undiagnosed,
+                 `High-grade` = trace[, 'hgl'] / undiagnosed, check.names = FALSE),
+    `Cancer mortality per 100,000` = setNames(cohort$cancer.deaths / alive * 1e5, AGES)
+  )
+}
+
+# The plots are drawn only when `make.plots` asks for them, so that every other
+# run, the calibration's among them, returns what it did without them.
+simulate <- function(strategies, pars, make.plots = FALSE) {
   outputs <- list()
-  traces <- list()
+  traces <- plots <- list()
   summary <- data.frame(strategy = character(0), C = numeric(0), E = numeric(0))
   for (strategy in strategies) {
     ages <- SCREENING.AGES[[strategy]]
@@ -173,6 +206,9 @@ simulate <- function(strategies, pars) {
     economics <- cohort.economics(cohort, pars)
     summary <- rbind(summary, data.frame(strategy = strategy, C = economics[['C']],
                                          E = economics[['E']]))
+    if (make.plots) plots[[strategy]] <- cohort.plots(cohort, pars)
   }
-  list(summary = summary, outputs = outputs, cohort.info = traces)
+  results <- list(summary = summary, outputs = outputs, cohort.info = traces)
+  if (make.plots) results$plots <- plots
+  results
 }

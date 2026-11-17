@@ -179,11 +179,28 @@ cohort.summary <- function(trace, pars, n = N.POPULATION) {
   c(C = cost, E = qalys)
 }
 
+# The plots of the Base case tab for a cohort trace, each under the title of
+# its tab: a numeric vector named by age, or a data frame of the ages and a line
+# per column. Rates and shares are among the living, as the outputs are, and
+# carry the Monte Carlo noise of the outputs. Drawing them takes no random
+# numbers.
+cohort.plots <- function(trace, n = N.POPULATION) {
+  list(
+    `Clinical incidence per 100,000` = setNames(trace$cases / trace$alive * 1e5, AGES),
+    `Lesion prevalence` = setNames(trace$lesions / trace$alive, AGES),
+    `Preclinical cancer prevalence per 100,000` =
+      setNames(trace$preclinical / trace$alive * 1e5, AGES),
+    `Cumulative diagnoses per 100,000` = setNames(cumsum(trace$cases) / n * 1e5, AGES)
+  )
+}
+
 # Every strategy is simulated from the random state the first one starts from:
 # with common random numbers, the difference between two strategies is that of
-# the strategies rather than of the draws.
-simulate <- function(strategies, pars) {
-  outputs <- list()
+# the strategies rather than of the draws. The plots are drawn only when
+# `make.plots` asks for them, so that every other run, the calibration's among
+# them, returns what it did without them.
+simulate <- function(strategies, pars, make.plots = FALSE) {
+  outputs <- plots <- list()
   summary <- data.frame(strategy = character(0), C = numeric(0), E = numeric(0))
   if (length(strategies) > 1) {
     if (!exists('.Random.seed', envir = globalenv(), inherits = FALSE)) runif(1)
@@ -197,6 +214,9 @@ simulate <- function(strategies, pars) {
     outputs[[strategy]] <- cohort.outputs(trace)
     ce <- cohort.summary(trace, pars)
     summary <- rbind(summary, data.frame(strategy = strategy, C = ce[['C']], E = ce[['E']]))
+    if (make.plots) plots[[strategy]] <- cohort.plots(trace)
   }
-  list(summary = summary, outputs = outputs)
+  results <- list(summary = summary, outputs = outputs)
+  if (make.plots) results$plots <- plots
+  results
 }

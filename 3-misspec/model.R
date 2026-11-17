@@ -196,10 +196,31 @@ cohort.summary <- function(cohort, p) {
     E = sum(discount * qalys))
 }
 
-# Runs the cohort once for each strategy. `cohort` is the cohort of each.
-simulate <- function(strategies, p) {
+# The plots of the Base case tab for a cohort, each under the title of its tab:
+# a numeric vector named by age, or a data frame of the ages and a line per
+# column. Rates and shares are among those never diagnosed, as the outputs are.
+cohort.plots <- function(cohort) {
+  at.risk <- rowSums(cohort$trace[, AT.RISK, drop = FALSE])
+  by.stage <- function(early, late)
+    data.frame(Age = MODEL.AGES, Localized = early, Advanced = late)
+  list(
+    `Cancer incidence per 100,000` =
+      by.stage(cohort$diagnosed.early / at.risk * 1e5, cohort$diagnosed.late / at.risk * 1e5),
+    `Lesion prevalence` = setNames(cohort$trace[, 'lesion'] / at.risk, MODEL.AGES),
+    `Undiagnosed cancer prevalence per 100,000` =
+      by.stage(cohort$trace[, 'pre.early'] / at.risk * 1e5,
+               cohort$trace[, 'pre.late'] / at.risk * 1e5),
+    `Cumulative diagnoses per 100,000` =
+      by.stage(cumsum(cohort$diagnosed.early) * 1e5, cumsum(cohort$diagnosed.late) * 1e5)
+  )
+}
+
+# Runs the cohort once for each strategy. `cohort` is the cohort of each. The
+# plots are drawn only when `make.plots` asks for them, so that every other
+# run, the calibration's among them, returns what it did without them.
+simulate <- function(strategies, p, make.plots = FALSE) {
   summary <- data.frame(strategy = character(0), C = numeric(0), E = numeric(0))
-  outputs <- cohorts <- list()
+  outputs <- cohorts <- plots <- list()
   for (strategy in strategies) {
     ages <- SCREENING.AGES[[strategy]]
     if (is.null(ages)) stop(sprintf("Unknown strategy '%s'", strategy))
@@ -209,6 +230,9 @@ simulate <- function(strategies, p) {
                                          E = unname(totals[['E']])))
     outputs[[strategy]] <- cohort.outputs(cohort)
     cohorts[[strategy]] <- cohort
+    if (make.plots) plots[[strategy]] <- cohort.plots(cohort)
   }
-  list(summary = summary, outputs = outputs, cohort = cohorts)
+  results <- list(summary = summary, outputs = outputs, cohort = cohorts)
+  if (make.plots) results$plots <- plots
+  results
 }

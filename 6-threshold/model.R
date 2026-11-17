@@ -223,24 +223,62 @@ programme.summary <- function(yearly, pars) {
   c(C = sum(discount * cost), E = sum(discount * (1 - sequelae * pars$qaly.loss.sequelae)))
 }
 
+# Prevalence of each sex over all its age groups, weighted by their size.
+overall.prevalence <- function(i) sum(GROUP.SIZE * i) / sum(GROUP.SIZE)
+
+# The plots of the Base case tab for a strategy, each under the title of its
+# tab: a data frame whose first column is the x axis and whose other columns
+# are a line each. `yearly` is what simulate.programme() returned per year,
+# as a share of the whole population aged 15-64, and is shown per person of
+# each sex, of whom there are half as many. `approach`, for current practice,
+# is the trajectory of simulate.equilibrium() from the seed: whether the
+# infection settles at an endemic level or dies out is the threshold the
+# calibration has to stay above.
+strategy.plots <- function(outputs, yearly, approach = NULL) {
+  per.sex <- function(column, scale = 1)
+    data.frame(Year = yearly$year, Women = 2 * scale * yearly[[paste0(column, '.women')]],
+               Men = 2 * scale * yearly[[paste0(column, '.men')]])
+  plots <- list(
+    `Prevalence by age group` = data.frame(`Age group` = AGE.GROUPS,
+                                           Women = unname(outputs$`Prevalence (women)`),
+                                           Men = unname(outputs$`Prevalence (men)`),
+                                           check.names = FALSE),
+    `Prevalence over the programme` = per.sex('infected'),
+    `New infections per 1,000 a year` = per.sex('infections', 1000),
+    `Treatments per 1,000 a year` = per.sex('treated', 1000)
+  )
+  if (!is.null(approach)) {
+    yearly.rows <- seq(1, nrow(approach), by = round(1 / TIME.STEP))
+    plots$`Approach to the endemic equilibrium` <- data.frame(
+      Year = (yearly.rows - 1) * TIME.STEP,
+      Women = apply(approach[yearly.rows, 1:4, drop = FALSE], 1, overall.prevalence),
+      Men = apply(approach[yearly.rows, 5:8, drop = FALSE], 1, overall.prevalence))
+  }
+  plots
+}
+
 # The model run on a parameter list, whose four calibrated parameters hold a
 # value per age group. The outputs of current practice are those of its
 # endemic equilibrium, the outputs of a programme those at its end, and the
 # costs and effects of every strategy are those of the years of a programme
-# from that equilibrium.
-simulate <- function(strategies, pars) {
+# from that equilibrium. The plots are drawn only when `make.plots` asks for
+# them, so that every other run, the calibration's among them, returns what it
+# did without them.
+simulate <- function(strategies, pars, make.plots = FALSE) {
   by.age <- function(name) as.numeric(unlist(pars[[name]])[AGE.GROUPS])
   susceptibility <- by.age('p.susceptibility')
   activity <- by.age('activity.level')
   clearance <- by.age('r.clearance')
   waning <- by.age('r.waning')
   endemic <- simulate.equilibrium(susceptibility, activity, clearance, waning,
-                                  equilibrium = TRUE)
+                                  trace = make.plots, equilibrium = TRUE)
   start <- attr(endemic, 'equilibrium')
+  approach <- attr(endemic, 'trace')
   attr(endemic, 'equilibrium') <- NULL
+  attr(endemic, 'trace') <- NULL
 
   summary <- data.frame(strategy = character(0), C = numeric(0), E = numeric(0))
-  outputs <- yearly <- reproduction <- list()
+  outputs <- yearly <- reproduction <- plots <- list()
   for (strategy in strategies) {
     tested <- SCREENED.GROUPS[[strategy]]
     if (is.null(tested)) stop(sprintf("Unknown strategy '%s'", strategy))
@@ -252,7 +290,12 @@ simulate <- function(strategies, pars) {
     outputs[[strategy]] <- if (strategy == 'current_practice') endemic else programme$outputs
     yearly[[strategy]] <- data.frame(year = seq_len(nrow(programme$yearly)), programme$yearly)
     reproduction[[strategy]] <- programme$reproduction.number
+    if (make.plots)
+      plots[[strategy]] <- strategy.plots(outputs[[strategy]], yearly[[strategy]],
+                                          if (strategy == 'current_practice') approach)
   }
-  list(summary = summary, outputs = outputs, programme = yearly,
-       reproduction.number = reproduction)
+  results <- list(summary = summary, outputs = outputs, programme = yearly,
+                  reproduction.number = reproduction)
+  if (make.plots) results$plots <- plots
+  results
 }

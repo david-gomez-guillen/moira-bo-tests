@@ -91,8 +91,10 @@ get.model.settings <- function() {
   list(cost.unit = '€', effectiveness.unit = 'QALY')
 }
 
-run.simulation <- function(strategies, pars) {
-  simulate(strategies, pars)
+# With `make.plots`, which the Base case tab sets, the results carry the plots
+# of every strategy too.
+run.simulation <- function(strategies, pars, make.plots = FALSE) {
+  simulate(strategies, pars, make.plots)
 }
 
 # Registry incidence and cancer mortality, and the lesion prevalence of a

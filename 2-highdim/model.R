@@ -130,7 +130,7 @@ simulate.vaccinated.cohort <- function(pars, sex, strict, vaccinated, efficacy) 
 simulate <- function(pars, strict=FALSE, vaccinated=c(F=0, M=0), efficacy=0) {
   cohorts <- lapply(SEXES, function(sex) {
     cohort <- simulate.vaccinated.cohort(pars, sex, strict, vaccinated[[sex]], efficacy)
-    c(summarise.cohort(cohort, sex), list(trace=cohort$trace))
+    c(summarise.cohort(cohort, sex), list(trace=cohort$trace, new.diagnoses=cohort$new.diagnoses))
   })
   names(cohorts) <- SEXES
   list(
@@ -140,6 +140,28 @@ simulate <- function(pars, strict=FALSE, vaccinated=c(F=0, M=0), efficacy=0) {
     ),
     life.years=mean(sapply(cohorts, `[[`, 'life.years')),
     cancers=mean(sapply(cohorts, `[[`, 'cancers')),
-    traces=lapply(cohorts, `[[`, 'trace')
+    traces=lapply(cohorts, `[[`, 'trace'),
+    new.diagnoses=lapply(cohorts, `[[`, 'new.diagnoses')
+  )
+}
+
+# The plots of the Base case tab for what simulate() returned, each under the
+# title of its tab: a data frame of the ages and a line per sex. Incidence and
+# prevalence are among those alive and never diagnosed, as the outputs are.
+cohort.plots <- function(results) {
+  ages <- FIRST.AGE:LAST.AGE
+  by.sex <- function(f) data.frame(Age=ages, Women=f('F'), Men=f('M'))
+  at.risk <- function(sex) {
+    rowSums(results$traces[[sex]][, c('healthy', 'low.grade', 'high.grade', 'preclinical')])
+  }
+  share <- function(state) function(sex) results$traces[[sex]][, state] / at.risk(sex)
+  list(
+    `Cancer incidence per 100,000`=by.sex(function(sex)
+      results$new.diagnoses[[sex]] / at.risk(sex) * 1e5),
+    `Low-grade lesion prevalence`=by.sex(share('low.grade')),
+    `High-grade lesion prevalence`=by.sex(share('high.grade')),
+    # The diagnosed never die, so this is every cancer diagnosed by each age.
+    `Cumulative cancers per 100,000`=by.sex(function(sex)
+      results$traces[[sex]][, 'diagnosed'] * 1e5)
   )
 }

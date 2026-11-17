@@ -85,7 +85,8 @@ run.cohort <- function(pars, screening.ages = integer(0)) {
   }
   list(healthy = healthy, lesion = lesion, preclinical = preclinical,
        diagnosed = diagnosed, diagnoses = diagnoses + screen.detected,
-       screened = screened, removed = removed)
+       screened = screened, removed = removed, symptomatic = diagnoses,
+       screen.detected = screen.detected)
 }
 
 # Registry incidence per 100,000 person-years among the undiagnosed, lesion
@@ -123,8 +124,29 @@ cohort.summary <- function(trace, pars) {
   c(C = costs, E = qalys)
 }
 
-simulate <- function(strategies, pars) {
-  outputs <- list()
+# The plots of the Base case tab for a cohort, each under the title of its tab:
+# a numeric vector named by age, or a data frame of the ages and a line per
+# column. Rates and shares are among the undiagnosed, as the outputs are. The
+# cumulative diagnoses at 85 are the lifetime risk the constraints bound.
+cohort.plots <- function(trace) {
+  at.risk <- trace$healthy + trace$lesion + trace$preclinical
+  incidence <- data.frame(Age = AGES, `After symptoms` = trace$symptomatic / at.risk * 1e5,
+                          check.names = FALSE)
+  if (any(trace$screen.detected > 0))
+    incidence$`At screening` <- trace$screen.detected / at.risk * 1e5
+  list(
+    `Cancer incidence per 100,000` = incidence,
+    `Lesion prevalence` = setNames(trace$lesion / at.risk, AGES),
+    `Preclinical cancer prevalence per 100,000` =
+      setNames(trace$preclinical / at.risk * 1e5, AGES),
+    `Cumulative diagnoses per 100,000` = setNames(cumsum(trace$diagnoses) * 1e5, AGES)
+  )
+}
+
+# The plots are drawn only when `make.plots` asks for them, so that every other
+# run, the calibration's among them, returns what it did without them.
+simulate <- function(strategies, pars, make.plots = FALSE) {
+  outputs <- plots <- list()
   summary <- data.frame(strategy = character(0), C = numeric(0), E = numeric(0))
   for (strategy in strategies) {
     ages <- SCREENING.AGES[[strategy]]
@@ -133,6 +155,9 @@ simulate <- function(strategies, pars) {
     outputs[[strategy]] <- cohort.outputs(trace, pars)
     ce <- cohort.summary(trace, pars)
     summary <- rbind(summary, data.frame(strategy = strategy, C = ce[['C']], E = ce[['E']]))
+    if (make.plots) plots[[strategy]] <- cohort.plots(trace)
   }
-  list(summary = summary, outputs = outputs)
+  results <- list(summary = summary, outputs = outputs)
+  if (make.plots) results$plots <- plots
+  results
 }
